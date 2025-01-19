@@ -1,4 +1,23 @@
 #!/usr/bin/python3
+#  ____  ____      _    __  __  ____ ___
+# |  _ \|  _ \    / \  |  \/  |/ ___/ _ \
+# | | | | |_) |  / _ \ | |\/| | |  | | | |
+# | |_| |  _ <  / ___ \| |  | | |__| |_| |
+# |____/|_| \_\/_/   \_\_|  |_|\____\___/
+#                           research group
+#                             dramco.be/
+#
+#  KU Leuven - Technology Campus Gent,
+#  Gebroeders De Smetstraat 1,
+#  B-9000 Gent, Belgium
+#
+#      Created: 2025-1-19
+#       Author: Fan Wu
+#      Version: 0.1
+#
+#  Description: This script launches two local Python programs and two remote Python programs
+# -----------------------------------------------------------------------
+
 import subprocess
 import sys
 import os
