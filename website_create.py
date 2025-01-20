@@ -40,7 +40,7 @@ GT_plot_Points = 2000
 LOCAL_TMP_DIR = tempfile.gettempdir()
 
 # Local directory for GT CSV files
-GT_DIR = "C:\\Users\\FanWu\\PHD_WORKS\\Display_IMU_VLP\\Dataset_GT\\"  # adjust as needed
+GT_DIR = "C:\\Users\\FanWu\\PHD_WORKS\\VLP_IMU-Display-Interface\\Dataset_GT\\"  # adjust as needed
 
 def sftp_connect():
     """
@@ -127,6 +127,7 @@ def read_gt_data(GT_plot_Points=GT_plot_Points):
     Assumes the CSV file contains fields: timestamp, x, y, z, etc.
     """
     latest_file = get_latest_file(GT_DIR, ".csv")
+    print(latest_file)
     if latest_file is None:
         return pd.DataFrame()
     try:
