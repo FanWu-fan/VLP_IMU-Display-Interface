@@ -139,7 +139,7 @@ def main():
     
     # Define local program paths.
     local_prog1 = os.path.join(base_dir, "Request_position_qualisys_Fan_v1.py")
-    local_prog2 = os.path.join(base_dir, "website_create_v0.5.py")
+    local_prog2 = os.path.join(base_dir, "website_create.py")
 
     
     # Define remote program paths.
