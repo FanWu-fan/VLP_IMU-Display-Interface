@@ -211,7 +211,11 @@ def update_imu_graph(n):
         name='acc_z'
     )
     layout = go.Layout(
-        xaxis=dict(title="Timestamp"),
+        # xaxis=dict(title="Timestamp"),
+        xaxis=dict(
+        title="Timestamp",
+        tickformat="%H:%M:%S",  # 只显示时:分:秒
+    ),
         yaxis=dict(title="Acceleration (g)"),
         dragmode="zoom",
         margin=dict(l=0, r=0, t=0, b=0),
@@ -263,7 +267,11 @@ def update_vlp_graph(n):
         )
         traces.append(trace)
     layout = go.Layout(
-        xaxis=dict(title="Timestamp"),
+        # xaxis=dict(title="Timestamp"),
+        xaxis=dict(
+        title="Timestamp",
+        tickformat="%H:%M:%S", 
+    ),
         yaxis=dict(title="RSS Value"),
         dragmode="zoom",
         margin=dict(l=0, r=0, t=0, b=0),
