@@ -127,7 +127,6 @@ def read_gt_data(GT_plot_Points=GT_plot_Points):
     Assumes the CSV file contains fields: timestamp, x, y, z, etc.
     """
     latest_file = get_latest_file(GT_DIR, ".csv")
-    print(latest_file)
     if latest_file is None:
         return pd.DataFrame()
     try:
@@ -172,8 +171,13 @@ app.layout = html.Div([
 
         html.Div([
             html.Div([
-                html.H2("IMU Acceleration Data", style={"marginBottom": "1px"}),
-                dcc.Graph(id='imu-graph', style={"height": "350px", "width": "700px"}),
+                html.H2("IMU Acceleration Data ", style={"marginBottom": "1px"}),
+                dcc.Graph(id='imu-graph-z', style={"height": "150px", "width": "700px"}),
+            ], style={"padding": "10px"}),
+
+            html.Div([
+                html.H2(style={"marginBottom": "1px"}),
+                dcc.Graph(id='imu-graph-xy', style={"height": "200px", "width": "700px"}),
             ], style={"padding": "10px"}),
 
             html.Div([
@@ -185,10 +189,38 @@ app.layout = html.Div([
 ])
 
 @app.callback(
-    Output('imu-graph', 'figure'),
+    Output('imu-graph-z', 'figure'),
     [Input('interval-component', 'n_intervals')]
 )
-def update_imu_graph(n):
+def update_imu_graph_z(n):
+    df = read_imu_data_remote()
+    if df.empty:
+        return go.Figure()
+    trace_acc_z = go.Scatter(
+        x=df['timestamp'],
+        y=df['acc_z'],
+        mode='lines+markers',
+        line=dict(color='green'),
+        name='acc_z',
+        showlegend=True,
+    )
+    layout = go.Layout(
+        xaxis=dict(
+            title="Timestamp",
+            tickformat="%H:%M:%S", 
+        ),
+        yaxis=dict(title="Acceleration (g)"),
+        dragmode="zoom",
+        margin=dict(l=0, r=0, t=0, b=0),
+    )
+    fig = go.Figure(data=[trace_acc_z], layout=layout)
+    return fig
+
+@app.callback(
+    Output('imu-graph-xy', 'figure'),
+    [Input('interval-component', 'n_intervals')]
+)
+def update_imu_graph_xy(n):
     df = read_imu_data_remote()
     if df.empty:
         return go.Figure()
@@ -204,23 +236,16 @@ def update_imu_graph(n):
         mode='lines+markers',
         name='acc_y'
     )
-    trace_acc_z = go.Scatter(
-        x=df['timestamp'],
-        y=df['acc_z'],
-        mode='lines+markers',
-        name='acc_z'
-    )
     layout = go.Layout(
-        # xaxis=dict(title="Timestamp"),
         xaxis=dict(
-        title="Timestamp",
-        tickformat="%H:%M:%S",  # 只显示时:分:秒
-    ),
+            title="Timestamp",
+            tickformat="%H:%M:%S",
+        ),
         yaxis=dict(title="Acceleration (g)"),
         dragmode="zoom",
         margin=dict(l=0, r=0, t=0, b=0),
     )
-    fig = go.Figure(data=[trace_acc_x, trace_acc_y, trace_acc_z], layout=layout)
+    fig = go.Figure(data=[trace_acc_x, trace_acc_y], layout=layout)
     return fig
 
 @app.callback(
