@@ -260,12 +260,15 @@ def update_gt_graph(n):
         x=df['x'],
         y=df['y'],
         mode='markers',
-        marker=dict(size=8),
+        marker=dict(size=5),
         name='GT Position'
     )
+    # if no need to fix the range, cancel it by removing the range
     layout = go.Layout(
-        xaxis=dict(title="X (m)"),
-        yaxis=dict(title="Y (m)"),
+        xaxis=dict(title="X (m)", 
+                   range = [2.9, 7]),
+        yaxis=dict(title="Y (m)",
+                   range = [-0.1,3.1]),
         dragmode="zoom",
         height=770, width=800,
         margin=dict(l=0, r=0, t=0, b=0),
