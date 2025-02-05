@@ -27,6 +27,8 @@ from dash.dependencies import Input, Output
 import plotly.graph_objs as go
 import pandas as pd
 from datetime import datetime
+from scipy.spatial.transform import Rotation as R 
+
 
 # Remote connection parameters (please change to your settings)
 REMOTE_HOST = '192.108.0.22'
@@ -76,7 +78,8 @@ def read_imu_data_remote():
         transport.close()
     
     try:
-        df = pd.read_csv(local_file, engine='python', on_bad_lines='skip')
+        df = pd.read_csv(local_file, engine='python', header=None,on_bad_lines='skip',skiprows=1)
+        df.columns = ['timestamp', 'acc_x', 'acc_y', 'acc_z', "gyro_x","gyro_y","gyro_z","angle_x","angle_y","angle_z"]
         df['timestamp'] = pd.to_datetime(df['timestamp'], format="%H:%M:%S.%f", errors='coerce')
         df = df.sort_values(by='timestamp')
         return df
@@ -101,7 +104,8 @@ def read_vlp_data_remote():
         transport.close()
     
     try:
-        df = pd.read_csv(local_file, engine='python', on_bad_lines='skip')
+        df = pd.read_csv(local_file, engine='python',header=None, on_bad_lines='skip',skiprows=1)
+        df.columns = ["timestamp","Mean RSS 0","Mean RSS 1","Mean RSS 2","Mean RSS 3","Mean RSS 4","Mean RSS 5","Mean RSS 6","Mean RSS 7"]
         df['timestamp'] = pd.to_datetime(df['timestamp'], format="%H:%M:%S.%f", errors='coerce')
         df = df.sort_values(by='timestamp')
         return df
@@ -130,8 +134,11 @@ def read_gt_data(GT_plot_Points=GT_plot_Points):
     if latest_file is None:
         return pd.DataFrame()
     try:
-        df = pd.read_csv(latest_file)
+        df = pd.read_csv(latest_file,header=None,on_bad_lines='skip',skiprows=1)
+        df.columns = ['timestamp', 'x', 'y', 'z', 'rot0', 'rot1', 'rot2', 'rot3', 'rot4', 'rot5', 'rot6', 'rot7', 'rot8']
         df = df.tail(GT_plot_Points)
+        df['timestamp'] = pd.to_datetime(df['timestamp'], format="%H:%M:%S.%f", errors='coerce')
+        df = df.sort_values(by='timestamp')
         return df
     except Exception as e:
         print("Failed to read GT CSV file:", e)
@@ -166,18 +173,23 @@ app.layout = html.Div([
     html.Div([
         html.Div([
             html.H2("Position Data (X and Y)", style={"marginBottom": "1px"}),
-            dcc.Graph(id='gt-graph', style={"height": "1000px", "width": "1000px"}),
+            dcc.Graph(id='gt-graph', style={"height": "1200px", "width": "1000px"}),
         ], style={"width": "50%", "display": "inline-block"}),
 
         html.Div([
             html.Div([
-                html.H2("IMU Acceleration Data ", style={"marginBottom": "1px"}),
+                html.H2("IMU  Data ", style={"marginBottom": "1px"}),
                 dcc.Graph(id='imu-graph-z', style={"height": "150px", "width": "700px"}),
             ], style={"padding": "10px"}),
 
             html.Div([
                 html.H2(style={"marginBottom": "1px"}),
                 dcc.Graph(id='imu-graph-xy', style={"height": "200px", "width": "700px"}),
+            ], style={"padding": "10px"}),
+
+            html.Div([
+                html.H2(style={"marginBottom": "1px"}),
+                dcc.Graph(id='imu-gt-yaw-angle', style={"height": "200px", "width": "700px"}),
             ], style={"padding": "10px"}),
 
             html.Div([
@@ -216,6 +228,8 @@ def update_imu_graph_z(n):
     fig = go.Figure(data=[trace_acc_z], layout=layout)
     return fig
 
+
+
 @app.callback(
     Output('imu-graph-xy', 'figure'),
     [Input('interval-component', 'n_intervals')]
@@ -234,7 +248,9 @@ def update_imu_graph_xy(n):
         x=df['timestamp'],
         y=df['acc_y'],
         mode='lines+markers',
-        name='acc_y'
+        name='acc_y',
+        marker=dict(color='orange', size=6),
+        line=dict(color='orange', width=2),
     )
     layout = go.Layout(
         xaxis=dict(
@@ -248,27 +264,97 @@ def update_imu_graph_xy(n):
     fig = go.Figure(data=[trace_acc_x, trace_acc_y], layout=layout)
     return fig
 
+
+
+
+@app.callback(
+    Output('imu-gt-yaw-angle', 'figure'),
+    [Input('interval-component', 'n_intervals')]
+)
+def update_imu_graph_xy(n):
+    df_imu = read_imu_data_remote()
+    df_gt = read_gt_data()
+
+    if df_imu.empty:
+        imu_time = []
+        imu_yaw = []
+    else:
+        imu_time = df_imu['timestamp']
+        imu_yaw = df_imu.iloc[:, -1]
+
+
+    if  df_gt.empty:
+        gt_time = []
+        gt_yaw = []
+    else:
+        gt_time = df_gt['timestamp'] if 'timestamp' in df_gt.columns else df_gt.index
+        yaw_list = []
+        for idx, row in df_gt.iloc[:, -9:].iterrows():
+            try:
+                R_mat = row.to_numpy().reshape((3, 3))
+                euler = R.from_matrix(R_mat).as_euler('xyz', degrees=True)
+                yaw = euler[2]
+            except Exception as e:
+                    print("Rotation matrix to Euler conversion error:", e)
+                    yaw = None
+            yaw_list.append(yaw) 
+        gt_yaw = yaw_list
+
+    imu_yaw = go.Scatter(
+        x=df_imu['timestamp'],
+        y=df_imu['angle_z'],
+        mode='lines+markers',
+        name='IMU Yaw',
+        showlegend=True,
+    )
+    
+    gt_yaw  = go.Scatter(
+        x=gt_time,
+        y=gt_yaw,
+        mode='lines+markers',
+        name='GT Yaw',
+        showlegend=True,
+    )
+
+    layout = go.Layout(
+            xaxis=dict(
+                title="Timestamp",
+                tickformat="%H:%M:%S",
+            ),
+            yaxis=dict(title=r"Yaw Angle (°)"),
+            dragmode="zoom",
+            margin=dict(l=0, r=0, t=0, b=0),
+        )
+    fig = go.Figure(data=[imu_yaw, gt_yaw], layout=layout)
+    return fig
+
+
 @app.callback(
     Output('gt-graph', 'figure'),
     [Input('interval-component', 'n_intervals')]
 )
+
+
 def update_gt_graph(n):
     df = read_gt_data()
     if df.empty:
         return go.Figure()
     trace = go.Scatter(
-        x=df['x'],
-        y=df['y'],
+        x=df['y'],
+        y=df['x'],
         mode='markers',
-        marker=dict(size=5),
-        name='GT Position'
+        marker=dict(size=5,color='red'),
+        name='GT Position',
+        showlegend=True,
     )
     # if no need to fix the range, cancel it by removing the range
     layout = go.Layout(
-        xaxis=dict(title="X (m)", 
-                   range = [2.9, 7]),
-        yaxis=dict(title="Y (m)",
+        xaxis=dict(title="Width (m)",
                    range = [-0.1,3.1]),
+        yaxis=dict(title="Length (m)", 
+                   autorange='reversed',
+                   range = [2.9, 7],
+                   ),
         dragmode="zoom",
         height=770, width=800,
         margin=dict(l=0, r=0, t=0, b=0),
@@ -278,8 +364,9 @@ def update_gt_graph(n):
 
 @app.callback(
     Output('vlp-graph', 'figure'),
-    [Input('interval-component', 'n_intervals')]
-)
+    [Input('interval-component', 'n_intervals')])
+
+
 def update_vlp_graph(n):
     df = read_vlp_data_remote()
     if df.empty:
@@ -291,7 +378,7 @@ def update_vlp_graph(n):
             x=df['timestamp'],
             y=df[col_name],
             mode='lines+markers',
-            name=col_name
+            name=col_name,
         )
         traces.append(trace)
     layout = go.Layout(
