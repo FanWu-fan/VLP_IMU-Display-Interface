@@ -292,8 +292,9 @@ def update_imu_graph_xy(n):
         for idx, row in df_gt.iloc[:, -9:].iterrows():
             try:
                 R_mat = row.to_numpy().reshape((3, 3))
-                euler = R.from_matrix(R_mat).as_euler('xyz', degrees=True)
+                euler = - R.from_matrix(R_mat).as_euler('xyz', degrees=True) # Negate the angles to account for clockwise rotation
                 yaw = euler[2]
+                print("euler:", euler)
             except Exception as e:
                     print("Rotation matrix to Euler conversion error:", e)
                     yaw = None
@@ -350,10 +351,11 @@ def update_gt_graph(n):
     # if no need to fix the range, cancel it by removing the range
     layout = go.Layout(
         xaxis=dict(title="Width (m)",
-                   range = [-0.1,3.1]),
+                   range = [-0.1,3.1]
+                   ),
         yaxis=dict(title="Length (m)", 
-                   autorange='reversed',
-                   range = [2.9, 7],
+                #    autorange='reversed',
+                   range = [7,2.9],
                    ),
         dragmode="zoom",
         height=770, width=800,
