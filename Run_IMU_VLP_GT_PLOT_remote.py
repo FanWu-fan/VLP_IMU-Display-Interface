@@ -31,6 +31,7 @@ def run_local_program(script_path):
     Returns a subprocess.Popen object.
     """
     try:
+        # 在 Windows 上创建新进程组，便于终止进程
         process = subprocess.Popen([sys.executable, script_path],
                                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
         return process
@@ -94,41 +95,47 @@ def kill_remote_process(pid_file):
 def signal_handler(signum, frame):
     """
     Handle termination signals by terminating local and remote processes.
+    在 Windows 上，使用 terminate() 终止进程；其它平台则使用 killpg。
     """
     global terminate_flag
     print("\nTermination signal received, shutting down...")
     terminate_flag = True
 
-    # Terminate local processes.
+    # 终止本地进程
     for p in local_processes:
         try:
-            os.killpg(os.getpgid(p.pid), signal.SIGTERM)
-            print(f"Terminated local process with PID {p.pid}")
+            if os.name == 'nt':  # Windows平台
+                p.terminate()
+                p.wait(timeout=5)  # 等待进程退出
+                print(f"Terminated local process with PID {p.pid} (using terminate() on Windows)")
+            else:
+                os.killpg(os.getpgid(p.pid), signal.SIGTERM)
+                print(f"Terminated local process with PID {p.pid}")
         except Exception as e:
             print(f"Error terminating local process {p.pid}: {e}")
 
-    # Terminate remote processes.
+    # 终止远程进程
     for pid_file in remote_pid_files:
         kill_remote_process(pid_file)
 
     sys.exit(0)
 
 def main():
-    # Register signal handlers.
+    # 注册信号处理函数。
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
     base_dir = os.path.abspath(os.path.dirname(__file__))
 
-    # Define the local plotting program.
+    # 定义本地绘图程序。
     local_prog = os.path.join(base_dir, "website_create_all_remote.py")
 
-    # Define remote program paths.
-    # Remote VLP program.
+    # 定义远程程序路径。
+    # 远程 VLP 程序。
     remote_prog_vlp = "/home/hiwonder/VLP_SLAM_Measurement/main_techtilemeasurements.py"
-    # Remote IMU program.
+    # 远程 IMU 程序。
     remote_prog_imu = "/home/hiwonder/VLP_SLAM_Measurement/imu_usb.py"
-    # Remote GT program.
+    # 远程 GT 程序。
     remote_prog_gt = "/home/hiwonder/VLP_SLAM_Measurement/Request_GT_robotrun.py"
 
     print("Launching local program...")

@@ -154,7 +154,7 @@ app.layout = html.Div([
                 dcc.Graph(id='imu-gt-yaw-angle', style={"height": "200px", "width": "700px"})
             ], style={"padding": "10px"}),
             html.Div([
-                html.H2("VLP RSS Data", style={"marginBottom": "1px"}),
+                html.H2("OP RSS Data", style={"marginBottom": "1px"}),
                 dcc.Graph(id='vlp-graph', style={"height": "350px", "width": "700px"})
             ], style={"padding": "5px"}),
         ], style={"width": "100%", "display": "inline-block", "verticalAlign": "top"}),
