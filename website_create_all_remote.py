@@ -10,6 +10,7 @@ import plotly.graph_objs as go
 import pandas as pd
 from datetime import datetime
 from scipy.spatial.transform import Rotation as R
+from OWP import *
 
 # Remote connection parameters (adjust as needed)
 REMOTE_HOST = '192.108.0.22'
@@ -275,9 +276,13 @@ def update_imu_gt_yaw_angle(n):
 )
 def update_gt_graph(n):
     df = read_gt_data_remote()
+    df_vlp = read_vlp_data_remote()
+
+    traces = []
+
     if df.empty:
         return go.Figure()
-    trace = go.Scatter(
+    trace_gt  = go.Scatter(
         x=df['y'],
         y=df['x'],
         mode='markers',
@@ -285,6 +290,24 @@ def update_gt_graph(n):
         name='GT Position',
         showlegend=True,
     )
+    traces.append(trace_gt)
+
+    if not df_vlp.empty:
+        rss_input = df_vlp[['Mean RSS 2', 'Mean RSS 3', 'Mean RSS 4', 'Mean RSS 5']].to_numpy()
+        # Directly predict for each model (assuming two models for two coordinate dimensions)
+        mean0, _ = loaded_models[0].predict(np.log(rss_input))  # shape (n_samples, 1)
+        mean1, _ = loaded_models[1].predict(np.log(rss_input))  # shape (n_samples, 1)
+        vlp_estimates = np.hstack((mean0, mean1))
+        trace_vlp = go.Scatter(
+            x=vlp_estimates[:, 1],
+            y=vlp_estimates[:, 0],
+            mode='markers',
+            marker=dict(size=5, color='blue'),
+            name='OWP Estimate',
+            showlegend=True,
+        )
+        traces.append(trace_vlp)
+
     layout = go.Layout(
         xaxis=dict(title="Width (m)", range=[-0.1, 3.1]),
         yaxis=dict(title="Length (m)", range=[7, 2.9]),
@@ -292,7 +315,7 @@ def update_gt_graph(n):
         height=770, width=800,
         margin=dict(l=0, r=0, t=0, b=0),
     )
-    fig = go.Figure(data=[trace], layout=layout)
+    fig = go.Figure(data=traces, layout=layout)
     return fig
 
 @app.callback(
@@ -323,4 +346,5 @@ def update_vlp_graph(n):
     return fig
 
 if __name__ == '__main__':
+    loaded_models = load_gp_models('./', num_models=2)
     app.run_server(debug=False, port=8050)
