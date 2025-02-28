@@ -127,7 +127,7 @@ app.layout = html.Div([
     html.Div([
         html.Img(src="/assets/kuleuven.png", style={"height": "50px", "margin-right": "10px"}),
         html.Img(src="/assets/logo-black.png", style={"height": "50px", "margin-right": "10px"}),
-        html.H1("VLP & IMU Sensor Fusion Real-time Localization", style={"margin": "0", "font-size": "36px"})
+        html.H1("OWP & IMU Sensor Fusion Real-time Localization", style={"margin": "0", "font-size": "36px"})
     ], style={
         "display": "flex",
         "justify-content": "center",
