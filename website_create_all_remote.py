@@ -113,6 +113,104 @@ def read_gt_data_remote():
         print("Failed to read remote GT_recent.csv file:", e)
         return pd.DataFrame()
 
+
+ekf_state = None
+ekf_cov = None
+last_ekf_timestamp = None
+def ekf_update(imu_data: np.ndarray, op_data: np.ndarray, init_state: np.ndarray, init_cov: np.ndarray, start_time: float):
+    """
+    Incremental EKF update. Only process imu and op data with timestamp > start_time.
+    
+    Parameters:
+      imu_data: np.ndarray
+          Each row is [timestamp, acc_x, acc_y, acc_z, gyro_x, gyro_y, gyro_z, angle_x, angle_y, angle_z]
+          Timestamp is in seconds.
+      op_data: np.ndarray
+          Each row is [timestamp, x_meas, y_meas, var_x, var_y]
+      init_state: np.ndarray
+          Initial state vector [x, y, vx, vy, theta]
+      init_cov: np.ndarray
+          Initial state covariance matrix
+      start_time: float
+          Last processed timestamp
+      
+    Returns:
+      new_state, new_cov, last_time
+    """
+    state = init_state.copy()
+    P = init_cov.copy()
+    new_imu_data = imu_data[imu_data[:, 0] > start_time]
+    if new_imu_data.shape[0] == 0:
+        return state, P, start_time
+
+    op_index = 0
+    num_op = op_data.shape[0]
+    t_prev = start_time
+
+    for i in range(new_imu_data.shape[0]):
+        current_time = new_imu_data[i, 0]
+        dt = current_time - t_prev
+        if dt <= 0:
+            dt = 1e-3
+
+        # Extract current IMU data (acceleration in g, gyro in deg/s)
+        a_x = new_imu_data[i, 1]
+        a_y = new_imu_data[i, 2]
+        gyro_z = new_imu_data[i, 6]
+
+        # Convert units: acceleration to m/s², gyro to rad/s
+        a_x = a_x * 9.81
+        a_y = a_y * 9.81
+        gyro_z = np.deg2rad(gyro_z)
+
+        theta = state[4]
+        # Convert body-frame acceleration to global frame
+        a_global_x = np.cos(theta) * a_x - np.sin(theta) * a_y
+        a_global_y = np.sin(theta) * a_x + np.cos(theta) * a_y
+
+        # State prediction (constant acceleration model)
+        state_pred = np.array([
+            state[0] + state[2]*dt + 0.5 * a_global_x * dt**2,
+            state[1] + state[3]*dt + 0.5 * a_global_y * dt**2,
+            state[2] + a_global_x * dt,
+            state[3] + a_global_y * dt,
+            state[4] + gyro_z * dt
+        ])
+
+        # Compute state transition Jacobian F
+        F = np.eye(5)
+        F[0, 2] = dt
+        F[0, 4] = -0.5 * dt**2 * (np.sin(theta) * a_x + np.cos(theta) * a_y)
+        F[1, 3] = dt
+        F[1, 4] = 0.5 * dt**2 * (np.cos(theta) * a_x - np.sin(theta) * a_y)
+        F[2, 4] = -dt * (np.sin(theta) * a_x + np.cos(theta) * a_y)
+        F[3, 4] = dt * (np.cos(theta) * a_x - np.sin(theta) * a_y)
+        
+        # Process noise covariance
+        Q = np.diag([0.01, 0.01, 0.1, 0.1, 0.01])
+        # Covariance prediction
+        P = F @ P @ F.T + Q
+        state = state_pred
+
+        # Measurement update: process op_data with timestamp <= current_time
+        while op_index < num_op and op_data[op_index, 0] <= current_time:
+            z = op_data[op_index, 1:3]  # [x_meas, y_meas]
+            R_meas = np.diag(op_data[op_index, 3:5])
+            H = np.array([[1, 0, 0, 0, 0],
+                          [0, 1, 0, 0, 0]])
+            innov = z - state[0:2]
+            S = H @ P @ H.T + R_meas
+            K = P @ H.T @ np.linalg.inv(S)
+            state = state + K @ innov
+            P = (np.eye(5) - K @ H) @ P
+            op_index += 1
+
+        t_prev = current_time
+
+    return state, P, current_time
+
+
+
 # Create Dash app
 app = dash.Dash(__name__)
 app.title = "VLP & IMU Sensor Fusion Real-time Localization"
@@ -275,19 +373,21 @@ def update_imu_gt_yaw_angle(n):
     [Input('interval-component', 'n_intervals')]
 )
 def update_gt_graph(n):
-    df = read_gt_data_remote()
+    global ekf_state, ekf_cov, last_ekf_timestamp
+    df_gt = read_gt_data_remote()
     df_vlp = read_vlp_data_remote()
+    df_imu = read_imu_data_remote()
 
     traces = []
 
-    if df.empty:
+    if df_gt.empty:
         return go.Figure()
     trace_gt  = go.Scatter(
-        x=df['y'],
-        y=df['x'],
+        x=df_gt['y'],
+        y=df_gt['x'],
         mode='markers',
-        marker=dict(size=5, color='red'),
-        name='GT Position',
+        marker=dict(size=7.5, color='red'),
+        name='GTP',
         showlegend=True,
     )
     traces.append(trace_gt)
@@ -302,11 +402,61 @@ def update_gt_graph(n):
             x=vlp_estimates[:, 1],
             y=vlp_estimates[:, 0],
             mode='markers',
-            marker=dict(size=5, color='blue'),
-            name='OWP Estimate',
+            marker=dict(size=2.5, color='rgba(0, 255, 0, 0.8)'),
+            name='OWP',
             showlegend=True,
         )
         traces.append(trace_vlp)
+
+     # If all three data sources are available, perform the EKF update
+    if not df_imu.empty and not df_gt.empty and not df_vlp.empty:
+        # Use the first IMU timestamp as a common time reference
+        base_time = df_imu.iloc[0]['timestamp']
+        df_imu['timestamp'] = df_imu['timestamp'].apply(lambda t: (t - base_time).total_seconds())
+        df_gt['timestamp']  = df_gt['timestamp'].apply(lambda t: (t - base_time).total_seconds())
+        df_vlp['timestamp'] = df_vlp['timestamp'].apply(lambda t: (t - base_time).total_seconds())
+
+        imu_array = df_imu.to_numpy()
+        gt_array  = df_gt.to_numpy()
+        # Construct op_data using OWP estimates from GP regression; here we use a fixed measurement variance (e.g., 0.1)
+        rss_input = df_vlp[['Mean RSS 2', 'Mean RSS 3', 'Mean RSS 4', 'Mean RSS 5']].to_numpy()
+        mean0, _ = loaded_models[0].predict(np.log(rss_input))
+        mean1, _ = loaded_models[1].predict(np.log(rss_input))
+        vlp_estimates = np.hstack((mean0, mean1))
+        op_var = np.array([0.1, 0.1])
+        op_timestamps = df_vlp['timestamp'].to_numpy().reshape(-1, 1)
+        op_data = np.hstack((op_timestamps, vlp_estimates, np.tile(op_var, (vlp_estimates.shape[0], 1))))
+        # Initialize EKF state if it hasn't been set yet using the earliest GT record
+        if ekf_state is None:
+            init_row = gt_array[0]
+            x_init = init_row[1]
+            y_init = init_row[2]
+            vx_init = 0.0
+            vy_init = 0.0
+            theta_init = np.arctan2(init_row[7], init_row[4])
+            ekf_state = np.array([x_init, y_init, vx_init, vy_init, theta_init])
+            ekf_cov = np.eye(5) * 0.1
+            last_ekf_timestamp = df_gt.iloc[0]['timestamp']
+
+        # Only process new data (timestamps greater than last_ekf_timestamp)
+        new_imu = imu_array[imu_array[:, 0] > last_ekf_timestamp]
+        new_op = op_data[op_data[:, 0] > last_ekf_timestamp]
+
+        # If new data exists, update the EKF state
+        if new_imu.shape[0] > 0:
+            ekf_state, ekf_cov, last_time = ekf_update(imu_array, op_data, ekf_state, ekf_cov, last_ekf_timestamp)
+            last_ekf_timestamp = last_time
+        # Plot the EKF fused estimate (green)
+        trace_ekf = go.Scatter(
+            x=[ekf_state[1]],  # x-axis: width (y value)
+            y=[ekf_state[0]],  # y-axis: length (x value)
+            mode='markers',
+            marker=dict(size=7, color='blue',symbol='x'),
+            name=r'EKF',
+            showlegend=True,
+        )
+        traces.append(trace_ekf)
+
 
     layout = go.Layout(
         xaxis=dict(title="Width (m)", range=[-0.1, 3.1]),
@@ -347,4 +497,5 @@ def update_vlp_graph(n):
 
 if __name__ == '__main__':
     loaded_models = load_gp_models('./', num_models=2)
+
     app.run_server(debug=False, port=8050)
