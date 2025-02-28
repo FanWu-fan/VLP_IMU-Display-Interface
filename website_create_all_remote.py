@@ -280,17 +280,16 @@ def update_gt_graph(n):
 
     traces = []
 
-    if df.empty:
-        return go.Figure()
-    trace_gt  = go.Scatter(
-        x=df['y'],
-        y=df['x'],
-        mode='markers',
-        marker=dict(size=5, color='red'),
-        name='GT Position',
-        showlegend=True,
-    )
-    traces.append(trace_gt)
+    if not df.empty:
+        trace_gt  = go.Scatter(
+            x=df['y'],
+            y=df['x'],
+            mode='markers',
+            marker=dict(size=5, color='red'),
+            name='GT',
+            showlegend=True,
+        )
+        traces.append(trace_gt)
 
     if not df_vlp.empty:
         rss_input = df_vlp[['Mean RSS 2', 'Mean RSS 3', 'Mean RSS 4', 'Mean RSS 5']].to_numpy()
@@ -302,8 +301,8 @@ def update_gt_graph(n):
             x=vlp_estimates[:, 1],
             y=vlp_estimates[:, 0],
             mode='markers',
-            marker=dict(size=5, color='blue'),
-            name='OWP Estimate',
+            marker=dict(size=2.5, color='rgba(0, 255, 0, 0.8)'),
+            name='OWP',
             showlegend=True,
         )
         traces.append(trace_vlp)
