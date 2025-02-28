@@ -115,7 +115,7 @@ def read_gt_data_remote():
 
 # Create Dash app
 app = dash.Dash(__name__)
-app.title = "VLP & IMU Sensor Fusion Real-time Localization"
+app.title = "OWP & IMU Sensor Fusion Real-time Localization"
 
 app.layout = html.Div([
     dcc.Interval(
