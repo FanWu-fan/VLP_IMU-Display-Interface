@@ -308,8 +308,8 @@ def update_gt_graph(n):
         traces.append(trace_vlp)
 
     layout = go.Layout(
-        xaxis=dict(title="Width (m)", range=[-0.1, 3.1]),
-        yaxis=dict(title="Length (m)", range=[7, 2.9]),
+        xaxis=dict(title="Width (m)", range=[-0.1, 4]),
+        yaxis=dict(title="Length (m)", range=[7, 2]),
         dragmode="zoom",
         height=770, width=800,
         margin=dict(l=0, r=0, t=0, b=0),
