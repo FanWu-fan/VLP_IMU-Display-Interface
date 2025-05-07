@@ -224,6 +224,27 @@ def update_gt_graph(n):
 
     traces = []
 
+    led_positions = [
+            {'id': '5', 'length': 3.561, 'width': 1.080},
+            {'id': '4', 'length': 3.561, 'width': 2.910},
+            {'id': '3', 'length': 5.975, 'width': 1.080},
+            {'id': '2', 'length': 5.975, 'width': 2.910},
+        ]
+    widths = [p['width'] for p in led_positions]
+    lengths = [p['length'] for p in led_positions]
+    ids     = [p['id'] for p in led_positions]
+
+    trace_led = go.Scatter(
+        x=widths,
+        y=lengths,
+        mode='markers+text',
+        marker=dict(size=14, color='goldenrod', symbol='square'),
+        text=ids,
+        textposition='top center',
+        name='Infrared LED',
+        showlegend=True
+    )
+    traces.append(trace_led)
 
     if not df_vlp.empty:
         rss_input = df_vlp[['Mean RSS 2', 'Mean RSS 3', 'Mean RSS 4', 'Mean RSS 5']].to_numpy()
@@ -240,39 +261,50 @@ def update_gt_graph(n):
             showlegend=True,
         )
         traces.append(trace_vlp)
+    
+    # —— Multilateration 估计 —— #
+    if not df_vlp.empty:
+        rss_cols = ['Mean RSS 2','Mean RSS 3','Mean RSS 4','Mean RSS 5']
+        alphas_all = df_vlp[rss_cols].to_numpy()
+        n = alphas_all.shape[0]
+        # 等距抽 5 帧：0, n/4, n/2, 3n/4, n-1
+        indices = np.linspace(0, n-1, 5, dtype=int)
 
-        if not df.empty:
-            trace_gt  = go.Scatter(
-                x=df['y'],
-                y=df['x'],
-                mode='markers',
-                marker=dict(size=8, color='red'),
-                name='GT',
-                showlegend=True,
-            )
-            traces.append(trace_gt)
+        estimates = []
+        prev_est = None
+        for idx in indices:
+            alphas = alphas_all[idx]
+            est = estimate_position_from_g(alphas, x0=prev_est)
+            estimates.append(est)
+            prev_est = est  # 热启动
+        estimates = np.array(estimates)
 
-        led_positions = [
-                {'id': '5', 'length': 3.561, 'width': 1.080},
-                {'id': '4', 'length': 3.561, 'width': 2.910},
-                {'id': '3', 'length': 5.975, 'width': 1.080},
-                {'id': '2', 'length': 5.975, 'width': 2.910},
-            ]
-        widths = [p['width'] for p in led_positions]
-        lengths = [p['length'] for p in led_positions]
-        ids     = [p['id'] for p in led_positions]
-
-        trace_led = go.Scatter(
-            x=widths,
-            y=lengths,
-            mode='markers+text',
-            marker=dict(size=14, color='goldenrod', symbol='square'),
-            text=ids,
-            textposition='top center',
-            name='Infrared LED',
+        # 在图里把所有这些点画出来
+        trace_multi_all = go.Scatter(
+            x=estimates[:,1],          # x 轴是 width (y)
+            y=estimates[:,0],          # y 轴是 length (x)
+            mode='markers',
+            marker=dict(size=6, color='purple', symbol='x'),
+            name='Multilateration',
             showlegend=True
         )
-        traces.append(trace_led)
+        traces.append(trace_multi_all)
+
+    if not df.empty:
+        trace_gt  = go.Scatter(
+            x=df['y'],
+            y=df['x'],
+            mode='markers',
+            marker=dict(size=8, color='red'),
+            name='GT',
+            showlegend=True,
+        )
+        traces.append(trace_gt)
+
+
+
+
+
 
     layout = go.Layout(
         xaxis=dict(title="Width (m)", range=[-0.1, 4]),
