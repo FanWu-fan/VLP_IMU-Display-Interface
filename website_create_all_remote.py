@@ -285,7 +285,7 @@ def update_gt_graph(n):
             y=estimates[:,0],          # y 轴是 length (x)
             mode='markers',
             marker=dict(size=6, color='purple', symbol='x'),
-            name='Multilateration',
+            name='OWP (Multilateration)',
             showlegend=True
         )
         traces.append(trace_multi_all)
