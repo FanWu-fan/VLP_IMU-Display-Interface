@@ -235,13 +235,12 @@ def update_gt_graph(n):
             x=vlp_estimates[:, 1],
             y=vlp_estimates[:, 0],
             mode='markers',
-            marker=dict(size=2.5, color='rgba(0, 255, 0, 0.8)'),
-            name='OWP',
+            marker=dict(size=5, color='rgba(0, 255, 0, 0.8)'),
+            name='OWP (GPs)',
             showlegend=True,
         )
         traces.append(trace_vlp)
 
-        
         if not df.empty:
             trace_gt  = go.Scatter(
                 x=df['y'],
@@ -267,7 +266,7 @@ def update_gt_graph(n):
             x=widths,
             y=lengths,
             mode='markers+text',
-            marker=dict(size=14, color='black', symbol='square'),
+            marker=dict(size=14, color='goldenrod', symbol='square'),
             text=ids,
             textposition='top center',
             name='Infrared LED',
