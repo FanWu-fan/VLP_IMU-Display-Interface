@@ -151,10 +151,6 @@ app.layout = html.Div([
                 dcc.Graph(id='imu-graph-xy', style={"height": "200px", "width": "700px"})
             ], style={"padding": "10px"}),
             html.Div([
-                html.H2("", style={"marginBottom": "1px"}),
-                dcc.Graph(id='imu-gt-yaw-angle', style={"height": "200px", "width": "700px"})
-            ], style={"padding": "10px"}),
-            html.Div([
                 html.H2("OP RSS Data", style={"marginBottom": "1px"}),
                 dcc.Graph(id='vlp-graph', style={"height": "350px", "width": "700px"})
             ], style={"padding": "5px"}),
@@ -216,58 +212,6 @@ def update_imu_graph_xy(n):
         margin=dict(l=0, r=0, t=0, b=0),
     )
     fig = go.Figure(data=[trace_acc_x, trace_acc_y], layout=layout)
-    return fig
-
-@app.callback(
-    Output('imu-gt-yaw-angle', 'figure'),
-    [Input('interval-component', 'n_intervals')]
-)
-def update_imu_gt_yaw_angle(n):
-    df_imu = read_imu_data_remote()
-    df_gt = read_gt_data_remote()
-    if df_imu.empty:
-        imu_time = []
-        imu_yaw = []
-    else:
-        imu_time = df_imu['timestamp']
-        imu_yaw = df_imu['angle_z']
-    if df_gt.empty:
-        gt_time = []
-        gt_yaw = []
-    else:
-        gt_time = df_gt['timestamp'] if 'timestamp' in df_gt.columns else df_gt.index
-        yaw_list = []
-        for idx, row in df_gt.iloc[:, -9:].iterrows():
-            try:
-                R_mat = row.to_numpy().reshape((3, 3))
-                euler = -R.from_matrix(R_mat).as_euler('xyz', degrees=True)
-                yaw = euler[2]
-            except Exception as e:
-                print("Rotation matrix to Euler conversion error:", e)
-                yaw = None
-            yaw_list.append(yaw)
-        gt_yaw = yaw_list
-    trace_imu_yaw = go.Scatter(
-        x=imu_time,
-        y=imu_yaw,
-        mode='lines+markers',
-        name='IMU Yaw',
-        showlegend=True,
-    )
-    trace_gt_yaw = go.Scatter(
-        x=gt_time,
-        y=gt_yaw,
-        mode='lines+markers',
-        name='GT Yaw',
-        showlegend=True,
-    )
-    layout = go.Layout(
-        xaxis=dict(title="Timestamp", tickformat="%H:%M:%S"),
-        yaxis=dict(title="Yaw Angle (°)"),
-        dragmode="zoom",
-        margin=dict(l=0, r=0, t=0, b=0),
-    )
-    fig = go.Figure(data=[trace_imu_yaw, trace_gt_yaw], layout=layout)
     return fig
 
 @app.callback(
