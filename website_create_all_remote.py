@@ -143,15 +143,15 @@ app.layout = html.Div([
         ], style={"width": "50%", "display": "inline-block"}),
         html.Div([
             html.Div([
-                html.H2("IMU Data", style={"marginBottom": "1px"}),
-                dcc.Graph(id='imu-graph-z', style={"height": "150px", "width": "700px"})
+                html.H2("Inertial Measurement Unit Data", style={"marginBottom": "1px"}),
+                dcc.Graph(id='imu-graph-z', style={"height": "130px", "width": "700px"})
             ], style={"padding": "10px"}),
             html.Div([
                 html.H2("", style={"marginBottom": "1px"}),
-                dcc.Graph(id='imu-graph-xy', style={"height": "200px", "width": "700px"})
+                dcc.Graph(id='imu-graph-xy', style={"height": "180px", "width": "700px"})
             ], style={"padding": "10px"}),
             html.Div([
-                html.H2("OP RSS Data", style={"marginBottom": "1px"}),
+                html.H2("Optical Wireless RSS Data", style={"marginBottom": "1px"}),
                 dcc.Graph(id='vlp-graph', style={"height": "350px", "width": "700px"})
             ], style={"padding": "5px"}),
         ], style={"width": "100%", "display": "inline-block", "verticalAlign": "top"}),
@@ -224,16 +224,6 @@ def update_gt_graph(n):
 
     traces = []
 
-    if not df.empty:
-        trace_gt  = go.Scatter(
-            x=df['y'],
-            y=df['x'],
-            mode='markers',
-            marker=dict(size=5, color='red'),
-            name='GT',
-            showlegend=True,
-        )
-        traces.append(trace_gt)
 
     if not df_vlp.empty:
         rss_input = df_vlp[['Mean RSS 2', 'Mean RSS 3', 'Mean RSS 4', 'Mean RSS 5']].to_numpy()
@@ -250,6 +240,40 @@ def update_gt_graph(n):
             showlegend=True,
         )
         traces.append(trace_vlp)
+
+        
+        if not df.empty:
+            trace_gt  = go.Scatter(
+                x=df['y'],
+                y=df['x'],
+                mode='markers',
+                marker=dict(size=8, color='red'),
+                name='GT',
+                showlegend=True,
+            )
+            traces.append(trace_gt)
+
+        led_positions = [
+                {'id': '5', 'length': 3.561, 'width': 1.080},
+                {'id': '4', 'length': 3.561, 'width': 2.910},
+                {'id': '3', 'length': 5.975, 'width': 1.080},
+                {'id': '2', 'length': 5.975, 'width': 2.910},
+            ]
+        widths = [p['width'] for p in led_positions]
+        lengths = [p['length'] for p in led_positions]
+        ids     = [p['id'] for p in led_positions]
+
+        trace_led = go.Scatter(
+            x=widths,
+            y=lengths,
+            mode='markers+text',
+            marker=dict(size=14, color='black', symbol='square'),
+            text=ids,
+            textposition='top center',
+            name='Infrared LED',
+            showlegend=True
+        )
+        traces.append(trace_led)
 
     layout = go.Layout(
         xaxis=dict(title="Width (m)", range=[-0.1, 4]),
@@ -270,7 +294,8 @@ def update_vlp_graph(n):
     if df.empty:
         return go.Figure()
     traces = []
-    for i in range(8):
+    show_owp_index = [2,3,4,5]
+    for i in show_owp_index:
         col_name = f"Mean RSS {i}"
         trace = go.Scatter(
             x=df['timestamp'],
